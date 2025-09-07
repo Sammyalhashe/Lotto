@@ -9,39 +9,36 @@ describe("Lotto", async function () {
   const publicClient = await viem.getPublicClient();
 
   it("Should emit the LottoStart event when calling the launch() function", async function () {
-    const lotto = await viem.deployContract("Lotto");
+    const lotto = await viem.deployContract("Lotto", [
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    ]);
 
     await viem.assertions.emitWithArgs(
-      lotto.write.launch(10),
+      lotto.write.launch([10n]),
       lotto,
       "LottoStart",
-      [1n],
+      [1n, "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", 10n],
     );
   });
 
-  it("The sum of the Increment events should match the current value", async function () {
-    const counter = await viem.deployContract("Counter");
-    const deploymentBlockNumber = await publicClient.getBlockNumber();
+  it("Sould emit the LottoEnd event when calling cancel()", async function () {
+    const lotto = await viem.deployContract("Lotto", [
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    ]);
 
-    // run a series of increments
-    for (let i = 1n; i <= 10n; i++) {
-      await counter.write.incBy([i]);
-    }
+    await viem.assertions.emit(lotto.write.launch([10n]), lotto, "LottoStart");
 
-    const events = await publicClient.getContractEvents({
-      address: counter.address,
-      abi: counter.abi,
-      eventName: "Increment",
-      fromBlock: deploymentBlockNumber,
-      strict: true,
-    });
-
-    // check that the aggregated events match the current value
-    let total = 0n;
-    for (const event of events) {
-      total += event.args.by;
-    }
-
-    assert.equal(total, await counter.read.x());
+    await viem.assertions.emitWithArgs(
+      lotto.write.cancel(),
+      lotto,
+      "LottoEnd",
+      [
+        1n,
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "0x0000000000000000000000000000000000000000",
+        0n,
+        false,
+      ],
+    );
   });
 });
