@@ -26,6 +26,8 @@ cd ..
 Start a local Hardhat node to simulate the Avalanche network:
 ```bash
 npx hardhat node
+# OR if using Nix shell:
+lotto-node
 ```
 *Keep this terminal running.*
 
@@ -33,6 +35,8 @@ npx hardhat node
 In a new terminal, deploy the contract to your local node:
 ```bash
 npx hardhat ignition deploy ignition/modules/Lotto.ts --network localhost
+# OR if using Nix shell:
+lotto-deploy
 ```
 **Important:** Copy the deployed contract address from the output.
 
@@ -45,6 +49,8 @@ npx hardhat ignition deploy ignition/modules/Lotto.ts --network localhost
 ```bash
 cd frontend
 npm run dev
+# OR if using Nix shell:
+lotto-ui
 ```
 Open the provided URL (usually `http://localhost:5173`) in your browser.
 

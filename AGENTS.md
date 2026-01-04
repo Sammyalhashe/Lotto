@@ -44,6 +44,10 @@ This file documents the specific user intent, business logic, and constraints fo
     nix develop --impure --command bash -c "YOUR_COMMAND_HERE"
     ```
 *   **Nushell:** The `flake.nix` initially configured `nushell` as the default shell via `shellHook = 'exec nu'`, which can interfere with non-interactive commands. This has been updated to be more compatible with scripted execution. If future interactive use of `nu` is desired, the `shellHook` in `flake.nix` may need to be adjusted or invoked manually after `nix develop`.
+*   **Helper Scripts:** The devShell includes the following shortcuts:
+    *   `lotto-node`: Starts the local hardhat node.
+    *   `lotto-deploy`: Deploys the contract to localhost.
+    *   `lotto-ui`: Starts the React frontend.
 
 ## 7. Available Tools
 The agent has access to the following tools for development and assistance:
