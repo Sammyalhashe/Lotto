@@ -1,10 +1,13 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 const LottoModule = buildModule("LottoModule", (m) => {
-  // No constructor args needed for the Manager style contract
-  const lotto = m.contract("Lotto");
+  // 1. Deploy the Strategy first
+  const strategy = m.contract("MockYieldStrategy");
 
-  return { lotto };
+  // 2. Deploy the Lotto Manager, passing the Strategy address
+  const lotto = m.contract("Lotto", [strategy]);
+
+  return { strategy, lotto };
 });
 
 export default LottoModule;
