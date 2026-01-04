@@ -82,5 +82,56 @@ To interact with the dApp, your wallet (Core or MetaMask) must be connected to y
 *   **Pick Winner:** Owner can pick a winner when the duration ends.
 *   **Yield (Concept):** The contract is structured to allow future integration with yield protocols.
 
+## Deployment to Production (Avalanche Fuji Testnet / Mainnet)
+
+### 1. Smart Contract Deployment
+To deploy to a live network like the Avalanche Fuji Testnet:
+
+1.  **Set Environment Variables:**
+    Use Hardhat's configuration variables to securely store your private key and RPC URL.
+    ```bash
+    npx hardhat vars set FUJI_PRIVATE_KEY
+    # Enter your private key (must have AVAX for gas)
+    ```
+
+2.  **Configure Network:**
+    Update `hardhat.config.ts` to include the network:
+    ```typescript
+    import { vars } from "hardhat/config";
+    
+    const FUJI_PRIVATE_KEY = vars.get("FUJI_PRIVATE_KEY");
+
+    // ... inside config object
+    networks: {
+      fuji: {
+        url: "https://api.avax-test.network/ext/bc/C/rpc",
+        accounts: [FUJI_PRIVATE_KEY],
+      },
+    },
+    ```
+
+3.  **Deploy:**
+    ```bash
+    npx hardhat ignition deploy ignition/modules/Lotto.ts --network fuji
+    ```
+
+### 2. Frontend Deployment
+1.  **Update Contract Address:**
+    Update `frontend/src/App.tsx` with the new address from the Fuji deployment.
+
+2.  **Update Chain Config:**
+    In `App.tsx`, change the `chain` from `hardhat` to `avalancheFuji`:
+    ```typescript
+    import { avalancheFuji } from 'viem/chains';
+    // ... use avalancheFuji in createPublicClient and createWalletClient
+    ```
+
+3.  **Build:**
+    ```bash
+    cd frontend
+    npm run build
+    ```
+    This creates a `dist/` folder containing static files ready to be hosted on Vercel, Netlify, or GitHub Pages.
+
 ## License
 MIT
