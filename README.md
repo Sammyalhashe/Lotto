@@ -1,57 +1,64 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# AVAX Lotto Learning Project
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+A decentralized lottery application built on Avalanche (AVAX) for educational purposes.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Overview
+This project demonstrates a full-stack dApp workflow:
+1.  **Smart Contract:** `Lotto.sol` handles ticket purchases, pooling funds, and picking a pseudo-random winner.
+2.  **Frontend:** A React + Vite + Tailwind CSS application that connects to the contract using `viem`.
+3.  **Tooling:** Hardhat (v3 Beta) for development, testing, and deployment.
 
-## Project Overview
+## Prerequisites
+*   Node.js (v20+)
+*   MetaMask (or similar wallet) installed in your browser.
 
-This example project includes:
+## Getting Started
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
-
-## Usage
-
-### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+### 1. Install Dependencies
+```bash
+npm install
+cd frontend
+npm install
+cd ..
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
-
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+### 2. Run Local Blockchain
+Start a local Hardhat node to simulate the Avalanche network:
+```bash
+npx hardhat node
 ```
+*Keep this terminal running.*
 
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+### 3. Deploy Contract
+In a new terminal, deploy the contract to your local node:
+```bash
+npx hardhat ignition deploy ignition/modules/Lotto.ts --network localhost
 ```
+**Important:** Copy the deployed contract address from the output.
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+### 4. Configure Frontend
+1.  Open `frontend/src/App.tsx`.
+2.  Update `CONTRACT_ADDRESS` with the address you just copied.
+3.  (Optional) Import the provided private keys from `npx hardhat node` output into MetaMask to have funds for testing. Switch MetaMask network to `Localhost 8545`.
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+### 5. Run Frontend
+```bash
+cd frontend
+npm run dev
 ```
+Open the provided URL (usually `http://localhost:5173`) in your browser.
 
-After setting the variable, you can run the deployment with the Sepolia network:
+## Project Structure
+*   `contracts/`: Solidity smart contracts.
+*   `frontend/`: React application.
+*   `test/`: Contract tests using `viem` and `node:test`.
+*   `ignition/`: Deployment modules.
+*   `docs/`: detailed learning guides.
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+## Features
+*   **Enter Lottery:** Pay 1 AVAX (testnet/local) to enter.
+*   **Pick Winner:** Owner can pick a winner when the duration ends.
+*   **Yield (Concept):** The contract is structured to allow future integration with yield protocols.
+
+## License
+MIT

@@ -21,7 +21,7 @@
                     ];
 
                     shellHook = ''
-                        exec nu
+                        echo "Welcome to the dev shell!"
                     '';
                 };
             };
