@@ -60,3 +60,15 @@ The agent has access to the following tools for development and assistance:
 *   `write_todos`: Manage a list of subtasks for complex requests.
 *   `codebase_investigator`: Analyze the codebase structure and dependencies.
 
+## 8. Allowed Shell Programs
+The following specific shell programs have been used and are considered permitted for this project's context:
+*   `git` (Version control)
+*   `nix` (Environment management)
+*   `npm` (Package management - run within `nix develop`)
+*   `npx` (Package execution - run within `nix develop`)
+*   `mkdir` (Directory creation)
+*   `rm` (File removal)
+*   `cat` (File reading)
+*   `yes` (Automating prompts)
+*   `bash` (Command execution wrapper)
+
