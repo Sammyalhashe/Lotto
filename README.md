@@ -54,6 +54,22 @@ lotto-ui
 ```
 Open the provided URL (usually `http://localhost:5173`) in your browser.
 
+### 6. Wallet Configuration & Funds (Crucial!)
+To interact with the dApp, your wallet (Core or MetaMask) must be connected to your local Hardhat node.
+
+1.  **Add Network:**
+    *   **Network Name:** Localhost 8545
+    *   **RPC URL:** `http://127.0.0.1:8545`
+    *   **Chain ID:** `31337`
+    *   **Currency Symbol:** `AVAX` (or ETH)
+
+2.  **Get Test Funds:**
+    *   Look at the terminal running `lotto-node` (or `npx hardhat node`).
+    *   It lists 20 accounts with 10,000 ETH/AVAX each.
+    *   Copy a **Private Key** from that list (e.g., `0xac09...`).
+    *   In your wallet, select **"Import Account"** (or "Add Account" -> "Import Private Key") and paste the key.
+    *   **Note:** Never use a real mainnet private key for development!
+
 ## Project Structure
 *   `contracts/`: Solidity smart contracts.
 *   `frontend/`: React application.
