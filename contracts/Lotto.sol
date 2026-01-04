@@ -65,6 +65,15 @@ contract Lotto {
         }
     }
 
+    // --- New Helper Functions for Frontend ---
+    function getPlayersCount() external view returns (uint256) {
+        return players.length;
+    }
+
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+
     // Function to simulate yield generation (anyone can donate to the pot for testing yield)
     receive() external payable {}
 }
