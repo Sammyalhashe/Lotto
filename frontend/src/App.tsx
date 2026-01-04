@@ -4,16 +4,32 @@ import { hardhat } from 'viem/chains';
 import LottoABI from './abi.json';
 
 // NOTE: Update this address after deploying to your local node!
-// Run: npx hardhat ignition deploy ignition/modules/Lotto.ts --network localhost
 const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; 
+
+interface Lottery {
+  id: bigint;
+  owner: string;
+  ticketPrice: bigint;
+  endTime: bigint;
+  playerCount: bigint;
+  winnerPicked: boolean;
+  winner: string;
+  prizeAmount: bigint;
+}
 
 function App() {
   const [account, setAccount] = useState<string>("");
-  const [ticketPrice, setTicketPrice] = useState<string>("0");
-  const [endTime, setEndTime] = useState<number>(0);
-  const [owner, setOwner] = useState<string>("");
-  const [playerCount, setPlayerCount] = useState<number>(0);
-  const [poolBalance, setPoolBalance] = useState<string>("0");
+  const [activeTab, setActiveTab] = useState<'browse' | 'create' | 'dashboard'>('browse');
+  
+  // Data
+  const [lotteries, setLotteries] = useState<Lottery[]>([]);
+  const [myCreatedIds, setMyCreatedIds] = useState<bigint[]>([]);
+  const [myJoinedIds, setMyJoinedIds] = useState<bigint[]>([]);
+  
+  // Form State
+  const [newTicketPrice, setNewTicketPrice] = useState("1");
+  const [newDuration, setNewDuration] = useState("60"); // seconds
+
   const [loading, setLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<string>("");
 
@@ -41,180 +57,297 @@ function App() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchLotteries = async () => {
     if (!publicClient || !CONTRACT_ADDRESS) return;
     try {
-      const price = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: LottoABI,
-        functionName: 'ticketPrice',
-      }) as bigint;
-      setTicketPrice(formatEther(price));
-
-      const end = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: LottoABI,
-        functionName: 'lotteryEndTime',
-      }) as bigint;
-      setEndTime(Number(end));
-      
-      const ownerAddr = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: LottoABI,
-        functionName: 'owner',
-      }) as string;
-      setOwner(ownerAddr);
-
+      // 1. Get total count
       const count = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: LottoABI,
-        functionName: 'getPlayersCount',
+        functionName: 'getLotteryCount',
       }) as bigint;
-      setPlayerCount(Number(count));
 
-      const balance = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: LottoABI,
-        functionName: 'getContractBalance',
-      }) as bigint;
-      setPoolBalance(formatEther(balance));
+      // 2. Fetch all lotteries (reverse order to show newest first)
+      const fetchedLotteries: Lottery[] = [];
+      for (let i = Number(count) - 1; i >= 0; i--) {
+        const data = await publicClient.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: LottoABI,
+          functionName: 'getLottery',
+          args: [BigInt(i)]
+        }) as any;
+        
+        fetchedLotteries.push({
+          id: data[0],
+          owner: data[1],
+          ticketPrice: data[2],
+          endTime: data[3],
+          playerCount: data[4],
+          winnerPicked: data[5],
+          winner: data[6],
+          prizeAmount: data[7]
+        });
+      }
+      setLotteries(fetchedLotteries);
+
+      // 3. Fetch User specific data if connected
+      if (account) {
+        const created = await publicClient.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: LottoABI,
+          functionName: 'getCreatorLotteries',
+          args: [account]
+        }) as bigint[];
+        setMyCreatedIds(created || []);
+
+        const joined = await publicClient.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: LottoABI,
+          functionName: 'getPlayerLotteries',
+          args: [account]
+        }) as bigint[];
+        setMyJoinedIds(joined || []);
+      }
 
     } catch (error) {
-      console.error("Error fetching contract data:", error);
-      setStatus("Error connecting to contract. Is it deployed and is your wallet on Localhost 8545?");
+      console.error("Error fetching data:", error);
     }
   };
 
   useEffect(() => {
     if (account) {
-      fetchData();
-      // Poll for updates every 5 seconds
-      const interval = setInterval(fetchData, 5000); 
+      fetchLotteries();
+      const interval = setInterval(fetchLotteries, 5000);
       return () => clearInterval(interval);
     }
   }, [account]);
 
-  const enterLottery = async () => {
+  const createLottery = async () => {
     if (!account) return;
     setLoading(true);
-    setStatus("Entering lottery...");
+    setStatus("Creating lottery...");
     try {
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: LottoABI,
-        functionName: 'enter',
+        functionName: 'createLottery',
+        args: [parseEther(newTicketPrice), BigInt(newDuration)],
         account: account as `0x${string}`,
-        value: parseEther(ticketPrice),
         chain: hardhat
       });
-      setStatus(`Transaction sent: ${hash}`);
       await publicClient.waitForTransactionReceipt({ hash });
-      setStatus("Successfully entered!");
-      fetchData(); // Refresh immediately after tx
+      setStatus("Lottery Created!");
+      setActiveTab('browse');
+      fetchLotteries();
     } catch (error: any) {
-      console.error(error);
       setStatus(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const pickWinner = async () => {
+  const enterLottery = async (id: bigint, price: bigint) => {
     if (!account) return;
     setLoading(true);
-    setStatus("Picking winner...");
+    setStatus(`Entering Lottery #${id}...`);
+    try {
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: LottoABI,
+        functionName: 'enterLottery',
+        args: [id],
+        account: account as `0x${string}`,
+        value: price,
+        chain: hardhat
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      setStatus("Success!");
+      fetchLotteries();
+    } catch (error: any) {
+      setStatus(`Error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pickWinner = async (id: bigint) => {
+    if (!account) return;
+    setLoading(true);
+    setStatus(`Picking winner for #${id}...`);
     try {
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: LottoABI,
         functionName: 'pickWinner',
+        args: [id],
         account: account as `0x${string}`,
         chain: hardhat
       });
-      setStatus(`Winner picked! Tx: ${hash}`);
       await publicClient.waitForTransactionReceipt({ hash });
-      fetchData();
+      setStatus("Winner Picked!");
+      fetchLotteries();
     } catch (error: any) {
-      console.error(error);
       setStatus(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const timeRemaining = Math.max(0, endTime - Math.floor(Date.now() / 1000));
-  const minutes = Math.floor(timeRemaining / 60);
-  const seconds = timeRemaining % 60;
+  // -- Render Helpers --
+  const renderLotteryCard = (lotto: Lottery) => {
+    const isOwner = lotto.owner.toLowerCase() === account.toLowerCase();
+    const now = Math.floor(Date.now() / 1000);
+    const isEnded = now > Number(lotto.endTime);
+    const timeLeft = Math.max(0, Number(lotto.endTime) - now);
+    
+    return (
+      <div key={lotto.id.toString()} className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-xl font-bold text-white">Lotto #{lotto.id.toString()}</h3>
+          <span className={`px-2 py-1 rounded text-xs font-bold ${lotto.winnerPicked ? 'bg-red-900 text-red-200' : isEnded ? 'bg-yellow-900 text-yellow-200' : 'bg-green-900 text-green-200'}`}>
+            {lotto.winnerPicked ? "Finished" : isEnded ? "Ended (Pending)" : "Active"}
+          </span>
+        </div>
+        
+        <div className="space-y-2 text-sm text-gray-300 mb-6">
+          <p>Price: <span className="font-mono text-white">{formatEther(lotto.ticketPrice)} AVAX</span></p>
+          <p>Pool: <span className="font-mono text-white">{formatEther(lotto.ticketPrice * lotto.playerCount)} AVAX</span></p>
+          <p>Players: {lotto.playerCount.toString()}</p>
+          {!lotto.winnerPicked && (
+             <p>Ends In: <span className="text-white font-mono">{timeLeft}s</span></p>
+          )}
+          {lotto.winnerPicked && (
+             <div className="mt-2 p-2 bg-gray-900 rounded">
+                <p className="text-yellow-500 font-bold">Winner:</p>
+                <p className="font-mono text-xs break-all">{lotto.winner}</p>
+             </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+           {!lotto.winnerPicked && !isEnded && (
+              <button 
+                onClick={() => enterLottery(lotto.id, lotto.ticketPrice)}
+                disabled={loading}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition disabled:opacity-50"
+              >
+                Enter
+              </button>
+           )}
+           {isOwner && !lotto.winnerPicked && isEnded && (
+              <button 
+                 onClick={() => pickWinner(lotto.id)}
+                 disabled={loading || lotto.playerCount === 0n}
+                 className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 rounded transition disabled:opacity-50"
+              >
+                 Pick Winner
+              </button>
+           )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
-      <h1 className="text-5xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-white">
-        AVAX Lotto
-      </h1>
-      
-      <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md space-y-6 border border-gray-700">
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      {/* Header */}
+      <div className="max-w-4xl mx-auto flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-white">
+          AVAX Lotto Factory
+        </h1>
         {!account ? (
-          <button 
-            onClick={connectWallet}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition"
-          >
-            Connect Wallet
-          </button>
+          <button onClick={connectWallet} className="bg-red-600 px-4 py-2 rounded font-bold">Connect Wallet</button>
         ) : (
-          <>
-            <div className="flex justify-between items-center bg-gray-700 p-4 rounded-lg">
-              <span className="text-gray-400">Account:</span>
-              <span className="font-mono text-sm">{account.slice(0,6)}...{account.slice(-4)}</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-700 p-4 rounded-lg text-center">
-                <p className="text-gray-400 text-sm">Ticket Price</p>
-                <p className="text-2xl font-bold">{ticketPrice} AVAX</p>
-              </div>
-              <div className="bg-gray-700 p-4 rounded-lg text-center">
-                <p className="text-gray-400 text-sm">Time Remaining</p>
-                <p className="text-2xl font-bold">
-                  {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
-                </p>
-              </div>
-              <div className="bg-gray-700 p-4 rounded-lg text-center">
-                <p className="text-gray-400 text-sm">Players</p>
-                <p className="text-2xl font-bold">{playerCount}</p>
-              </div>
-              <div className="bg-gray-700 p-4 rounded-lg text-center">
-                <p className="text-gray-400 text-sm">Pool Size</p>
-                <p className="text-2xl font-bold">{poolBalance} AVAX</p>
-              </div>
-            </div>
-
-            <button 
-              onClick={enterLottery}
-              disabled={loading || timeRemaining === 0}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg transition text-lg"
-            >
-              {loading ? "Processing..." : "Buy Ticket"}
-            </button>
-
-            {account.toLowerCase() === owner.toLowerCase() && (
-               <div className="pt-4 border-t border-gray-600">
-                  <p className="text-sm text-gray-400 mb-2 text-center">Owner Zone</p>
-                  <button 
-                    onClick={pickWinner}
-                    disabled={loading || timeRemaining > 0 || playerCount === 0}
-                    className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition"
-                  >
-                    Pick Winner
-                  </button>
-               </div>
-            )}
-          </>
+           <span className="font-mono text-sm bg-gray-800 px-3 py-1 rounded">{account.slice(0,6)}...</span>
         )}
-        
-        {status && (
-          <div className="mt-4 p-3 bg-gray-900 rounded border border-gray-600 text-sm text-center break-words">
-            {status}
-          </div>
+      </div>
+
+      {/* Tabs */}
+      {account && (
+        <div className="max-w-4xl mx-auto mb-8 flex space-x-4 border-b border-gray-700 pb-4">
+           <button 
+             onClick={() => setActiveTab('browse')}
+             className={`px-4 py-2 rounded ${activeTab === 'browse' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+           >
+             Browse Lottos
+           </button>
+           <button 
+             onClick={() => setActiveTab('create')}
+             className={`px-4 py-2 rounded ${activeTab === 'create' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+           >
+             Create New
+           </button>
+           <button 
+             onClick={() => setActiveTab('dashboard')}
+             className={`px-4 py-2 rounded ${activeTab === 'dashboard' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+           >
+             My Dashboard
+           </button>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto">
+        {status && <div className="mb-4 p-3 bg-blue-900/30 border border-blue-800 rounded text-center">{status}</div>}
+
+        {activeTab === 'browse' && (
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {lotteries.filter(l => !l.winnerPicked).map(renderLotteryCard)}
+              {lotteries.filter(l => !l.winnerPicked).length === 0 && <p className="text-gray-500 col-span-2 text-center">No active lotteries found.</p>}
+           </div>
+        )}
+
+        {activeTab === 'create' && (
+           <div className="max-w-md mx-auto bg-gray-800 p-8 rounded-lg border border-gray-700">
+              <h2 className="text-xl font-bold mb-6">Create a Lottery</h2>
+              <div className="space-y-4">
+                 <div>
+                    <label className="block text-sm text-gray-400 mb-1">Ticket Price (AVAX)</label>
+                    <input 
+                      type="number" 
+                      value={newTicketPrice} 
+                      onChange={e => setNewTicketPrice(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white"
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-sm text-gray-400 mb-1">Duration (Seconds)</label>
+                    <input 
+                      type="number" 
+                      value={newDuration} 
+                      onChange={e => setNewDuration(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white"
+                    />
+                 </div>
+                 <button 
+                   onClick={createLottery}
+                   disabled={loading}
+                   className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition"
+                 >
+                    {loading ? "Creating..." : "Launch Lottery"}
+                 </button>
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'dashboard' && (
+           <div className="space-y-8">
+              <div>
+                 <h2 className="text-xl font-bold mb-4 text-gray-300">Created by Me</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {lotteries.filter(l => myCreatedIds.includes(l.id)).map(renderLotteryCard)}
+                    {lotteries.filter(l => myCreatedIds.includes(l.id)).length === 0 && <p className="text-gray-500">You haven't created any lotteries.</p>}
+                 </div>
+              </div>
+              
+              <div>
+                 <h2 className="text-xl font-bold mb-4 text-gray-300">Joined by Me</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {lotteries.filter(l => myJoinedIds.includes(l.id)).map(renderLotteryCard)}
+                    {lotteries.filter(l => myJoinedIds.includes(l.id)).length === 0 && <p className="text-gray-500">You haven't joined any lotteries.</p>}
+                 </div>
+              </div>
+           </div>
         )}
       </div>
     </div>

@@ -3,14 +3,12 @@ import assert from "node:assert/strict";
 import { network } from "hardhat";
 import { parseEther } from "viem";
 
-describe("Lotto Contract", async function () {
+describe("Lotto Manager", async function () {
   let publicClient;
   let deployer;
   let player1;
   let player2;
   let lottoContract;
-  let ticketPrice;
-  let duration;
 
   before(async () => {
     const { viem } = await network.connect();
@@ -20,48 +18,45 @@ describe("Lotto Contract", async function () {
     player1 = clients[1];
     player2 = clients[2];
 
-    ticketPrice = parseEther("1"); // 1 AVAX
-    duration = 60n * 60n; // 1 hour
-
-    lottoContract = await viem.deployContract("Lotto", [ticketPrice, duration]);
+    lottoContract = await viem.deployContract("Lotto");
   });
 
-  it("Should set the correct ticket price and duration", async function () {
-    const price = await lottoContract.read.ticketPrice();
-    const savedDuration = await lottoContract.read.lotteryDuration();
+  it("Should create a new lottery", async function () {
+    await lottoContract.write.createLottery([parseEther("1"), 3600n]); // 1 AVAX, 1 hour
     
-    assert.equal(price, ticketPrice);
-    assert.equal(savedDuration, duration);
+    const count = await lottoContract.read.getLotteryCount();
+    assert.equal(count, 1n);
+
+    const lotto = await lottoContract.read.getLottery([0n]);
+    // id, owner, price, end, count, picked, winner, prize
+    assert.equal(lotto[0], 0n);
+    assert.equal(lotto[1].toLowerCase(), deployer.account.address.toLowerCase());
+    assert.equal(lotto[2], parseEther("1"));
   });
 
-  it("Should allow a player to enter", async function () {
+  it("Should allow entering a specific lottery", async function () {
     const { viem } = await network.connect();
-    // Use player1 to enter
     const lottoAsPlayer1 = await viem.getContractAt(
       "Lotto",
       lottoContract.address,
       { client: { wallet: player1 } }
     );
 
-    await lottoAsPlayer1.write.enter({ value: ticketPrice });
+    await lottoAsPlayer1.write.enterLottery([0n], { value: parseEther("1") });
     
-    const players = await lottoContract.read.players([0n]);
-    assert.equal(players.toLowerCase(), player1.account.address.toLowerCase());
+    const lotto = await lottoContract.read.getLottery([0n]);
+    assert.equal(lotto[4], 1n); // playerCount
   });
 
-  it("Should fail if ticket price is incorrect", async function () {
-    const { viem } = await network.connect();
-    const lottoAsPlayer2 = await viem.getContractAt(
-      "Lotto",
-      lottoContract.address,
-      { client: { wallet: player2 } }
-    );
+  it("Should track created lotteries for user", async function () {
+    const created = await lottoContract.read.getCreatorLotteries([deployer.account.address]);
+    assert.equal(created.length, 1);
+    assert.equal(created[0], 0n);
+  });
 
-    await assert.rejects(
-        async () => {
-            await lottoAsPlayer2.write.enter({ value: parseEther("0.5") });
-        },
-        (err: any) => err.message.includes("Incorrect ticket price")
-    );
+  it("Should track joined lotteries for player", async function () {
+    const joined = await lottoContract.read.getPlayerLotteries([player1.account.address]);
+    assert.equal(joined.length, 1);
+    assert.equal(joined[0], 0n);
   });
 });
