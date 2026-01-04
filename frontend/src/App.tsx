@@ -15,6 +15,8 @@ interface Lottery {
   winnerPicked: boolean;
   winner: string;
   prizeAmount: bigint;
+  yieldGenerated: bigint;
+  currentYieldEstimate: bigint;
 }
 
 function App() {
@@ -85,7 +87,9 @@ function App() {
           playerCount: data[4],
           winnerPicked: data[5],
           winner: data[6],
-          prizeAmount: data[7]
+          prizeAmount: data[7],
+          yieldGenerated: data[8],
+          currentYieldEstimate: data[9]
         });
       }
       setLotteries(fetchedLotteries);
@@ -200,6 +204,10 @@ function App() {
     const isEnded = now > Number(lotto.endTime);
     const timeLeft = Math.max(0, Number(lotto.endTime) - now);
     
+    // Formatting yield safely
+    const estimatedYield = parseFloat(formatEther(lotto.currentYieldEstimate));
+    const finalYield = parseFloat(formatEther(lotto.yieldGenerated));
+
     return (
       <div key={lotto.id.toString()} className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
         <div className="flex justify-between items-start mb-4">
@@ -213,6 +221,14 @@ function App() {
           <p>Price: <span className="font-mono text-white">{formatEther(lotto.ticketPrice)} AVAX</span></p>
           <p>Pool: <span className="font-mono text-white">{formatEther(lotto.ticketPrice * lotto.playerCount)} AVAX</span></p>
           <p>Players: {lotto.playerCount.toString()}</p>
+          
+          {/* Yield Display */}
+          {lotto.winnerPicked ? (
+             <p className="text-green-400 font-bold">Yield Generated: {finalYield} AVAX</p>
+          ) : (
+             <p className="text-gray-400">Est. Yield: {estimatedYield > 0 ? estimatedYield.toFixed(6) : "0.0"} AVAX</p>
+          )}
+
           {!lotto.winnerPicked && (
              <p>Ends In: <span className="text-white font-mono">{timeLeft}s</span></p>
           )}

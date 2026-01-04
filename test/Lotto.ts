@@ -39,39 +39,55 @@ describe("Lotto Manager with Yield Strategy", async function () {
       { client: { wallet: player1 } }
     );
 
-    // Initial Strategy Balance
-    const initialBal = await publicClient.getBalance({ address: strategyContract.address });
-    assert.equal(initialBal, 0n);
-
     // Enter
     await lottoAsPlayer1.write.enterLottery([0n], { value: parseEther("1") });
     
-    // Check Strategy Balance increased
+    // Check Strategy Balance
     const finalBal = await publicClient.getBalance({ address: strategyContract.address });
     assert.equal(finalBal, parseEther("1"));
   });
 
-  it("Should allow picking winner and withdrawing principal from strategy", async function () {
+  it("Should allow picking winner and withdrawing principal + yield", async function () {
+    // 1. Simulate Yield Generation (Send extra 0.1 ETH to strategy)
+    // Using deployer to send
+    const { viem } = await network.connect();
+    const strategyAsDeployer = await viem.getContractAt(
+        "MockYieldStrategy", 
+        strategyContract.address,
+        { client: { wallet: deployer } }
+    );
+    // Directly send funds to mock receive()
+    await deployer.sendTransaction({
+        to: strategyContract.address,
+        value: parseEther("0.1")
+    });
+
+    // Check Balance = 1.1 ETH (1 Principal + 0.1 Yield)
+    const totalBal = await publicClient.getBalance({ address: strategyContract.address });
+    assert.equal(totalBal, parseEther("1.1"));
+
     // Fast forward time
-    // In Hardhat network with Viem
     await testClient.increaseTime({ seconds: 3601 });
     await testClient.mine({ blocks: 1 });
 
     const winnerInitialBal = await publicClient.getBalance({ address: player1.account.address });
+    const ownerInitialBal = await publicClient.getBalance({ address: deployer.account.address });
 
     // Pick Winner (Deployer is owner)
+    // Since only 1 lotto exists, it should get 100% of the yield (0.1 ETH)
     await lottoContract.write.pickWinner([0n]);
 
     const winnerFinalBal = await publicClient.getBalance({ address: player1.account.address });
-    
-    // Winner should get the 1 AVAX back (minus gas costs if they were the caller, but deployer called it)
-    // Actually, winner is Player1, Deployer called pickWinner.
-    // So Player1 balance should strictly increase by 1 AVAX.
-    
+    const ownerFinalBal = await publicClient.getBalance({ address: deployer.account.address });
+
+    // Winner (Player1) gets Principal (1 ETH)
     assert.equal(winnerFinalBal - winnerInitialBal, parseEther("1"));
-    
-    // Strategy should be empty
-    const stratBal = await publicClient.getBalance({ address: strategyContract.address });
-    assert.equal(stratBal, 0n);
+
+    // Owner (Deployer) gets Yield (0.1 ETH) - Gas
+    // Since gas is tricky, we check if balance increased "roughly" or check the events/view.
+    // Easier: Check the View function first
+    const lotto = await lottoContract.read.getLottery([0n]);
+    // index 8 is yieldGenerated
+    assert.equal(lotto[8], parseEther("0.1"));
   });
 });

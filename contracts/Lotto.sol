@@ -69,7 +69,6 @@ contract Lotto {
         }
 
         // Forward funds to the Strategy immediately
-        // The strategy will hold them and (theoretically) earn yield
         yieldStrategy.deposit{value: msg.value}(_id);
 
         emit PlayerEntered(_id, msg.sender);
@@ -83,86 +82,49 @@ contract Lotto {
         require(!lotto.winnerPicked, "Winner already picked");
         require(lotto.players.length > 0, "No players entered");
 
-        // 1. Pick Winner (Pseudo-random)
+        // 1. Pick Winner
         uint256 randomIndex = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, lotto.players.length))) % lotto.players.length;
         address winner = lotto.players[randomIndex];
 
-        // 2. Calculate Amounts
-        uint256 totalPrincipal = lotto.players.length * lotto.ticketPrice;
+        // 2. Calculate Principal
+        uint256 lottoPrincipal = lotto.players.length * lotto.ticketPrice;
         
-        // We assume the Strategy holds *at least* the principal.
-        // In a real scenario, we'd check strategy balance.
-        // Any balance ABOVE principal (allocated to this lotto) would be yield.
-        // *Simplification for MVP*: 
-        // We don't track exact yield-per-lotto in the strategy.
-        // We will just withdraw Principal for the winner.
-        // Any 'Global' yield in the strategy is currently hard to attribute to a specific lotto
-        // without a more complex Vault system (ERC4626).
-        // 
-        // For this Demo: We will fetch the Principal from Strategy -> Winner.
-        // We will *check* if there is extra balance in the strategy proportional to this lotto?
-        // No, that's too complex. 
-        // New Plan:
-        // We withdraw `totalPrincipal` for the Winner.
-        // Then we check if the Strategy has EXTRA balance available *right now*? 
-        // No, that would drain other lottos.
-        //
-        // *Revised Yield Logic for MVP Multi-Lotto*:
-        // Implementation of per-lotto yield is very hard without ERC4626 shares.
-        // WE WILL ONLY WITHDRAW PRINCIPAL.
-        // The "Yield" will remain in the strategy for this MVP iteration unless we implement shares.
-        // 
-        // Wait! I can implement a simpler logic:
-        // When picking winner, we withdraw `Principal` -> Winner.
-        // We also allow the Owner to withdraw a fixed "Yield" amount IF the strategy allows it?
-        // No.
-        // 
-        // Let's implement this: 
-        // The Owner gets any *surplus* balance that exists in the Strategy *attributed* to this lotto?
-        // Impossible to know without shares.
-        // 
-        // *Pivot*: We will behave as if the Strategy earned X% yield and try to withdraw `Principal + Yield`.
-        // If Strategy has enough, we send Principal to Winner, Yield to Owner.
-        // Since `MockYieldStrategy` pools everything, we will just simulate a "claim" of 
-        // whatever extra ETH is in the strategy proportional to the lotto size?
-        //
-        // Let's stick to the SAFEST path for a learning project:
-        // 1. Withdraw Principal -> Pay Winner.
-        // 2. If Strategy Balance > Total Global Principal (tracked in strategy), the excess is Yield.
-        //    (The simple MockStrategy currently tracks `totalDeposited`).
-        //    We can check `strategy.balance - strategy.totalDeposited`.
-        //    We can payout a *share* of that global yield to this lotto owner.
-        //    Share = (LottoPrincipal / TotalDeposited) * TotalYield.
+        // 3. Calculate Yield Share
+        // Proportional Share = (LottoPrincipal / GlobalPrincipal) * GlobalYield
+        // Note: GlobalPrincipal includes THIS lotto's principal.
+        
+        uint256 globalPrincipal = yieldStrategy.getPrincipalBalance();
+        uint256 globalTotal = yieldStrategy.getTotalBalance();
+        
+        uint256 yieldForOwner = 0;
+        
+        if (globalTotal > globalPrincipal && globalPrincipal > 0) {
+            uint256 globalYield = globalTotal - globalPrincipal;
+            // Precision handling: (Yield * LottoPrincipal) / GlobalPrincipal
+            yieldForOwner = (globalYield * lottoPrincipal) / globalPrincipal;
+        }
 
-        uint256 stratBalance = yieldStrategy.getTotalBalance();
-        // We need `totalDeposited` from strategy to know global principal
-        // Let's add `totalDeposited` to interface? No, we cast to Mock for this demo logic 
-        // or just rely on the fact that for this demo, usually only one lotto runs.
-        
-        // Let's keep it simple: Just Pay Principal to Winner. 
-        // Yield optimization is a "Next Step" unless I change the Strategy Interface to returns Stats.
-        //
-        // Let's update `IYieldStrategy` to help us. 
-        // I will update the interface in the next step to include `totalDeposited`.
-        
-        // ...Wait, I can't update the interface mid-execution of this thought process easily.
-        // I will assume for now we just pay principal.
-        
         lotto.winnerPicked = true;
         lotto.winner = winner;
-        lotto.prizeAmount = totalPrincipal;
+        lotto.prizeAmount = lottoPrincipal;
+        lotto.yieldGenerated = yieldForOwner;
 
-        // Withdraw Principal from Strategy to THIS contract
-        yieldStrategy.withdrawPrincipal(totalPrincipal);
-        
-        // Send Principal to Winner
-        (bool success, ) = winner.call{value: totalPrincipal}("");
-        require(success, "Prize transfer failed");
+        // 4. Withdraw Principal -> THIS -> Winner
+        yieldStrategy.withdrawPrincipal(lottoPrincipal);
+        (bool successPrize, ) = winner.call{value: lottoPrincipal}("");
+        require(successPrize, "Prize transfer failed");
 
-        emit WinnerPicked(_id, winner, totalPrincipal, 0);
+        // 5. Withdraw Yield -> THIS -> Owner
+        if (yieldForOwner > 0) {
+            yieldStrategy.withdrawYield(yieldForOwner);
+            (bool successYield, ) = lotto.owner.call{value: yieldForOwner}("");
+            require(successYield, "Yield transfer failed");
+        }
+
+        emit WinnerPicked(_id, winner, lottoPrincipal, yieldForOwner);
     }
     
-    // Allow receiving ETH from the Strategy (withdrawals)
+    // Allow receiving ETH from the Strategy
     receive() external payable {}
 
     // --- Views ---
@@ -175,9 +137,27 @@ contract Lotto {
         uint256 playerCount, 
         bool winnerPicked, 
         address winner,
-        uint256 prizeAmount
+        uint256 prizeAmount,
+        uint256 yieldGenerated,
+        uint256 currentYieldEstimate // New field for UI
     ) {
         LotteryInfo storage lotto = lotteries[_id];
+        
+        // Calculate Estimate (similar logic to pickWinner)
+        uint256 estimate = 0;
+        if (!lotto.winnerPicked && lotto.players.length > 0) {
+             uint256 lottoPrincipal = lotto.players.length * lotto.ticketPrice;
+             uint256 globalPrincipal = yieldStrategy.getPrincipalBalance();
+             uint256 globalTotal = yieldStrategy.getTotalBalance();
+             
+             if (globalTotal > globalPrincipal && globalPrincipal > 0) {
+                uint256 globalYield = globalTotal - globalPrincipal;
+                estimate = (globalYield * lottoPrincipal) / globalPrincipal;
+             }
+        } else {
+            estimate = lotto.yieldGenerated;
+        }
+
         return (
             lotto.id,
             lotto.owner,
@@ -186,7 +166,9 @@ contract Lotto {
             lotto.players.length,
             lotto.winnerPicked,
             lotto.winner,
-            lotto.prizeAmount
+            lotto.prizeAmount,
+            lotto.yieldGenerated,
+            estimate
         );
     }
 

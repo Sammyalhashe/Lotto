@@ -15,4 +15,7 @@ interface IYieldStrategy {
 
     /// @notice Returns total value held by strategy
     function getTotalBalance() external view returns (uint256);
+
+    /// @notice Returns the total principal deposited (excluding yield)
+    function getPrincipalBalance() external view returns (uint256);
 }

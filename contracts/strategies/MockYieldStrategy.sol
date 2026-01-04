@@ -56,6 +56,10 @@ contract MockYieldStrategy is IYieldStrategy {
         return address(this).balance;
     }
 
+    function getPrincipalBalance() external view override returns (uint256) {
+        return totalDeposited;
+    }
+
     /// @notice Magic function to simulate interest generation
     /// @dev Anyone can send funds here to simulate "Yield" appearing
     receive() external payable {}

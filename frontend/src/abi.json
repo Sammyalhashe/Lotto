@@ -1,5 +1,16 @@
 [
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_strategy",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -67,7 +78,13 @@
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "amount",
+          "name": "prize",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "yield",
           "type": "uint256"
         }
       ],
@@ -197,6 +214,16 @@
           "internalType": "uint256",
           "name": "prizeAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "yieldGenerated",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "currentYieldEstimate",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -278,6 +305,11 @@
           "internalType": "uint256",
           "name": "prizeAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "yieldGenerated",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -332,5 +364,22 @@
       ],
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "yieldStrategy",
+      "outputs": [
+        {
+          "internalType": "contract IYieldStrategy",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
     }
   ]
