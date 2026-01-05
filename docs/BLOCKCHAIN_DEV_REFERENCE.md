@@ -86,37 +86,77 @@ Logs stored on the blockchain, cheaper than storage. Used by frontends to update
 
 ---
 
-## Part 2: Security Best Practices
+## Part 2: Working with Tokens & Libraries
 
-### 2.1. Reentrancy
+### 2.1. Native Currency vs. ERC-20
+*   **Native Currency (AVAX/ETH):** Built into the protocol.
+    *   Sent via: `msg.value` (in) and `addr.call{value: x}("")` (out).
+    *   No imports required.
+*   **ERC-20 Tokens (USDC, LINK, UNI):** These are **smart contracts** themselves, not protocol-level currencies.
+    *   To interact with them, your contract needs to "speak" their language.
+    *   **The Interface (`IERC20`):** Defines the standard functions (`transfer`, `balanceOf`, `approve`). Without this, Solidity doesn't know these functions exist on the target address.
+    *   **Why use it?** If you wanted your Lotto to accept USDC instead of AVAX, you would *need* `IERC20` to tell the USDC contract to move funds.
+
+### 2.2. OpenZeppelin (The Industry Standard)
+OpenZeppelin provides a library of secure, audited, and battle-tested smart contract components.
+
+*   **Why use it?**
+    *   **Security:** Avoids common bugs (e.g., reentrancy, ownership flaws).
+    *   **Standardization:** Ensures your tokens are compatible with wallets/exchanges.
+*   **Common Modules:**
+    *   `Ownable`: secure access control (better than writing `onlyOwner` yourself).
+    *   `ReentrancyGuard`: Provides the `nonReentrant` modifier.
+    *   `ERC20`: Base implementation for creating your own tokens.
+    *   `IERC20`: Interface for interacting with *other people's* tokens.
+
+### 2.3. How to Use OpenZeppelin
+1.  **Install:** `npm install @openzeppelin/contracts`
+2.  **Import & Inherit:**
+    ```solidity
+    import "@openzeppelin/contracts/access/Ownable.sol";
+
+    contract MyContract is Ownable {
+        constructor() Ownable(msg.sender) {} // Initialize Ownable
+
+        function restricted() external onlyOwner {
+            // ...
+        }
+    }
+    ```
+
+---
+
+## Part 3: Security Best Practices
+
+### 3.1. Reentrancy
 *   **Concept:** Attacker calls your function, and before you update their balance, they call it *again* recursively to drain funds.
 *   **Fix 1 (Checks-Effects-Interactions):** Update internal state (balances) *before* sending ETH.
 *   **Fix 2 (Reentrancy Guard):** Use a `nonReentrant` modifier to lock the function.
 
-### 2.2. Isolating External Calls
+### 3.2. Isolating External Calls
 *   **Pull over Push:** Don't send money to 100 people in a loop. If one fails, *everyone* fails. Instead, record that they are owed money and let them "withdraw" (pull) it themselves.
 *   **Untrusted Contracts:** Always assume the address you are calling is malicious.
 
 ---
 
-## Part 3: Tooling & Environment (Hardhat)
+## Part 4: Tooling & Environment (Hardhat)
 
-### 3.1. Useful Commands
+### 4.1. Useful Commands
 *   `npx hardhat compile`: Check for syntax errors.
 *   `npx hardhat test`: Run your test suite.
 *   `npx hardhat node`: Start a local blockchain (simulates Avalanche).
 
-### 3.2. Configuration (`hardhat.config.ts`)
+### 4.2. Configuration (`hardhat.config.ts`)
 Where you define Solidity versions and network connections.
 *   **Networks:** To deploy to Fuji (Testnet), you'll add the URL and Private Key (via `vars`) here.
 
 ---
 
-## Part 4: Testing & Interaction (Viem)
+## Part 5: Testing & Interaction (Viem)
 
 We use **Viem** (via `hardhat-toolbox-viem`) to interact with our contracts in tests and scripts.
 
-### 4.1. Setup (in `test/*.ts`)
+### 5.1. Setup (in `test/*.ts`)
 ```typescript
 import { network } from "hardhat";
 // ... inside a test block
@@ -124,18 +164,18 @@ const { viem } = await network.connect();
 const myContract = await viem.deployContract("Lotto", [arg1]);
 ```
 
-### 4.2. Reading & Writing
+### 5.2. Reading & Writing
 *   **Write (Changes State):** `await myContract.write.functionName([args])`
 *   **Read (View Only):** `await myContract.read.functionName([args])`
 
-### 4.3. Utilities
+### 5.3. Utilities
 *   **`parseEther("1.0")`**: Converts "1.0" to `1000000000000000000` (Wei).
 *   **`formatEther(bigInt)`**: The reverse.
 *   **`getAddress("0x...")`**: Fixes letter casing (Checksum).
 
 ---
 
-## Part 5: Deployment (Ignition)
+## Part 6: Deployment (Ignition)
 
 Deployment scripts are "Modules" in `ignition/modules/`.
 
