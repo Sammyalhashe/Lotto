@@ -30,6 +30,8 @@ True randomness is difficult on deterministic blockchains. In production, we wou
 ### Yield Strategy (Stretch Goal)
 To separate concerns, we can use a "Strategy" pattern. The Lotto contract holds funds, but delegate them to a strategy contract that interacts with Aave/Benqi. For the MVP, we will use a `BasicStrategy` that just holds the funds.
 
+> **Guide:** Want to implement this? Check out the [YIELD_INTEGRATION_GUIDE.md](./YIELD_INTEGRATION_GUIDE.md) for a deep dive into integrating Aave and Yield Yak.
+
 ## Development Log
 1.  **Setup:** Initialized Hardhat project with Viem.
 2.  **Contract:** Implemented `Lotto.sol` with entry and winner picking logic.
