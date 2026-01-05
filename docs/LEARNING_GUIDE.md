@@ -9,6 +9,8 @@ This document tracks the development process of the Lotto dApp, designed to faci
 *   **Interaction Library:** Viem - A modern, lightweight, and type-safe alternative to Ethers.js.
 *   **Frontend:** React (via Vite) - Fast and popular web framework.
 
+> **Note:** For detailed syntax and usage examples of the blockchain tools (Viem, Hardhat, Ignition), see [BLOCKCHAIN_DEV_REFERENCE.md](./BLOCKCHAIN_DEV_REFERENCE.md).
+
 ## Architecture
 
 ### Smart Contract (`Lotto.sol`)
