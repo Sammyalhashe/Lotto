@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "AVAX Lotto Docs",
   description: "Documentation for the Avalanche Lottery Project",
-  base: "/Lotto/", // Assumes repo name is 'Lotto'. If different, change this.
+  base: "/", // Assumes repo name is 'Lotto'. If different, change this.
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
